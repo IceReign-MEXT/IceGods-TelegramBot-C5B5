@@ -1,89 +1,128 @@
-0import os
+import os
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import defaultdict
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
 
-# Load env variables (Railway injects them automatically)
-TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+from web3 import Web3
+from solana.rpc.async_api import AsyncClient
+from solana.publickey import PublicKey
 
-ETH_MAIN_WALLET = os.environ["ETH_MAIN_WALLET"]
-ETH_BACKUP_WALLET = os.environ["ETH_BACKUP_WALLET"]
-SOL_MAIN_WALLET = os.environ["SOL_MAIN_WALLET"]
-SOL_BACKUP_WALLET = os.environ["SOL_BACKUP_WALLET"]
+# Environment
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+ETH_MAIN_WALLET = os.environ.get("ETH_MAIN_WALLET")
+SOL_MAIN_WALLET = os.environ.get("SOL_MAIN_WALLET")
+ALCHEMY_ETH_RPC = os.environ.get("ALCHEMY_ETH_RPC")
+ALCHEMY_SOL_RPC = os.environ.get("ALCHEMY_SOL_RPC", "https://api.mainnet-beta.solana.com")
 
-# Subscription pricing
-SUBSCRIPTION_TIERS = {
-    "12h": 15,
-    "24h": 20,
-    "weekly": 100,
-    "monthly": 200,
-    "yearly": 1500
-}
-
-# Setup logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
+# Logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Command Handlers ---
+# --- Subscription Plans ---
+SUBSCRIPTION_TIERS = {
+    "12h": 20,
+    "24h": 35,
+    "3 days": 50,
+    "weekly": 120,
+    "monthly": 250,
+    "quarterly": 700,
+    "yearly": 1800
+}
 
+# --- Blockchain Clients ---
+w3 = Web3(Web3.HTTPProvider(ALCHEMY_ETH_RPC))
+sol_client = AsyncClient(ALCHEMY_SOL_RPC)
+
+# --- In-memory user subscriptions (replace with DB for production) ---
+user_subscriptions = {}  # chat_id -> {"expires": datetime, "crypto": "ETH/SOL", "amount": float}
+user_paid_addresses = defaultdict(lambda: ETH_MAIN_WALLET)  # simulate unique addresses
+
+# --- Helper Functions ---
+async def check_payment(chat_id: int):
+    sub = user_subscriptions.get(chat_id)
+    if not sub:
+        return False
+    crypto, amount = sub["crypto"], sub["amount"]
+    if crypto.lower() == "eth":
+        balance = w3.eth.get_balance(user_paid_addresses[chat_id]) / 1e18
+        return balance >= amount
+    elif crypto.lower() == "sol":
+        resp = await sol_client.get_balance(PublicKey(user_paid_addresses[chat_id]))
+        balance = resp['result']['value'] / 1e9
+        return balance >= amount
+    return False
+
+async def activate_subscription(chat_id: int, duration_hours: int):
+    expires = datetime.utcnow() + timedelta(hours=duration_hours)
+    user_subscriptions[chat_id] = {"expires": expires, "crypto": None, "amount": 0}
+    return expires
+
+# --- Command Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("Subscription Plans", callback_data="plans")],
-        [InlineKeyboardButton("Check Status", callback_data="status")]
+        [InlineKeyboardButton("💰 Subscription Plans", callback_data="plans")],
+        [InlineKeyboardButton("📊 Check Status", callback_data="status")]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "👋 Welcome to IceGods Bot!\n\n"
-        "This bot monitors wallets, protects against dust/fake tokens, "
-        "and provides subscription-based sweeping.\n\n"
-        "Type /help to see available commands.",
-        reply_markup=reply_markup
-    )
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "/start - Welcome message\n"
-        "/help - Show this help\n"
-        "/about - About the bot\n"
-        "/plans - Subscription plans\n"
-        "/sweep - Sweep fake tokens (owner only)\n"
-        "/status - Show bot status"
-    )
-
-async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "⚡ IceGods Bot v1.1\n\n"
-        "✅ Dust & scam protection\n"
-        "✅ Multi-chain monitoring\n"
-        "✅ Subscription sweeping\n"
-        "✅ Dashboard integration coming soon"
+        "👋 Welcome to IceGods Bot! Monitor wallets and subscribe for automated sweeping.",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 async def plans(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = "💰 *Subscription Plans:*\n"
+    msg = "💰 *Subscription Plans:*\n"
     for tier, price in SUBSCRIPTION_TIERS.items():
-        message += f"{tier} Plan → ${price}\n"
-    await update.message.reply_text(message)
+        msg += f"{tier} → ${price}\n"
+    msg += "\nAfter selecting a plan, send /pay <crypto> <plan> to generate payment instructions."
+    await update.message.reply_text(msg)
 
-async def sweep(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Only owner can use
-    if str(update.effective_user.id) != TELEGRAM_CHAT_ID:
-        await update.message.reply_text("❌ You are not authorized to use this command.")
+async def pay(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if len(context.args) != 2:
+        await update.message.reply_text("Usage: /pay <crypto> <plan>")
         return
-    await update.message.reply_text("Sweeping tokens... ✅")
-    # TODO: Add sweeping logic
+
+    crypto, plan = context.args
+    plan = plan.lower()
+    if plan not in SUBSCRIPTION_TIERS:
+        await update.message.reply_text("❌ Invalid plan. Use /plans to see options.")
+        return
+
+    amount = SUBSCRIPTION_TIERS[plan]
+    user_subscriptions[chat_id] = {"expires": None, "crypto": crypto.upper(), "amount": amount}
+    address = user_paid_addresses[chat_id]  # could be unique wallet per user
+    await update.message.reply_text(
+        f"Send {amount} {crypto.upper()} to address:\n{address}\n"
+        "Once received, the bot will automatically activate your subscription."
+    )
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ Bot is online and running smoothly!")
+    chat_id = update.effective_chat.id
+    sub = user_subscriptions.get(chat_id)
+    if not sub or not sub.get("expires"):
+        await update.message.reply_text("❌ No active subscription.")
+    else:
+        expires = sub["expires"].strftime("%Y-%m-%d %H:%M UTC")
+        await update.message.reply_text(f"✅ Subscription active until {expires}.")
 
-# --- Callback Query Handler for Inline Buttons ---
+# --- Background task to check payments ---
+async def payment_watcher(app):
+    while True:
+        for chat_id, sub in user_subscriptions.items():
+            if sub["expires"] is None and sub["crypto"]:
+                if await check_payment(chat_id):
+                    duration = 24 if sub["crypto"].lower() == "eth" else 24  # Example: 24h for all
+                    expires = await activate_subscription(chat_id, duration)
+                    try:
+                        await app.bot.send_message(chat_id, f"✅ Payment detected! Subscription active until {expires}.")
+                    except Exception as e:
+                        logger.error(f"Failed to notify {chat_id}: {e}")
+        await asyncio.sleep(30)  # check every 30 seconds
+
+# --- Callback Buttons ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -92,28 +131,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "status":
         await status(update, context)
 
-# --- Main Application ---
+# --- Main ---
 async def main():
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-
-    # Command handlers
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("about", about))
     app.add_handler(CommandHandler("plans", plans))
-    app.add_handler(CommandHandler("sweep", sweep))
+    app.add_handler(CommandHandler("pay", pay))
     app.add_handler(CommandHandler("status", status))
-
-    # Inline button handler
     app.add_handler(CallbackQueryHandler(button_handler))
-
-    # Run the bot
-    logger.info("Bot is starting...")
     await app.initialize()
     await app.start()
     await app.updater.start_polling()
-    await app.idle()
-    await app.shutdown()
+    asyncio.create_task(payment_watcher(app))  # background watcher
+    await asyncio.Event().wait()  # keep running
 
 if __name__ == "__main__":
     asyncio.run(main())

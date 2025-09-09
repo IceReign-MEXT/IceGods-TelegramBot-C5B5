@@ -1,21 +1,9 @@
-# Python
+# .gitignore
+.env
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-*.db
-
-# Virtual environment
 venv/
-.env/
 .env.*
-
-# Logs
-*.log
-
-# Docker
-*.pid
-
-# IDE
-.vscode/
-.idea/
+*.sqlite3
+*.db
+.DS_Store

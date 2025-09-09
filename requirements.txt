@@ -1,7 +1,5 @@
-python-telegram-bot==21.6
-web3==6.19.0
-solana==0.36.9
-httpx==0.28.1
-requests==2.31.0
-python-dotenv==1.0.1
-Flask==2.3.3
+python-telegram-bot==20.7
+python-dotenv
+requests
+web3
+flask

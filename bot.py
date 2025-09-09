@@ -1,31 +1,27 @@
 import os
-import asyncio
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import Application, ContextTypes, CommandHandler
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-# Load environment variables
+# Load .env
 load_dotenv()
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")  # must be a string
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# Async function to send a test message
-async def send_start_message(app: Application):
-    chat_id = int(TELEGRAM_CHAT_ID)
-    await app.bot.send_message(chat_id=chat_id, text="✅ Bot has started!")
+# Commands
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👋 Bot is alive and running!")
 
-async def main():
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🏓 Pong!")
 
-    print("Bot is starting...")
-    await app.initialize()
-    await app.start()
+def main():
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("ping", ping))
 
-    # Send a start message
-    await send_start_message(app)
-
-    # Start polling
-    await app.run_polling()
+    print("🚀 Bot started...")
+    app.run_polling()  # No asyncio.run() here!
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

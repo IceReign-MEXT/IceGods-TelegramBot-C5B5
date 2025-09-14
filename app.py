@@ -1,15 +1,18 @@
-# app.py - simple Flask subscription API (demo)
 import os
 import sqlite3
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime
+from telegram import Bot, Update
+from telegram.ext import Dispatcher, MessageHandler, Filters
+from bot import handle_message
 
 load_dotenv()
 
 DB_PATH = os.getenv("DATABASE_PATH", "subscriptions.db")
+BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 
-# init DB
+# --- Database Setup ---
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 c = conn.cursor()
 c.execute("""
@@ -23,7 +26,13 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 """)
 conn.commit()
 
+# --- Flask App ---
 app = Flask(__name__)
+
+# --- Telegram Bot Setup ---
+bot = Bot(token=BOT_TOKEN)
+dispatcher = Dispatcher(bot, None, workers=0)
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
 PLAN_SECONDS = {
     "1h": 3600,
@@ -59,6 +68,13 @@ def status(telegram_id):
     plan, start_ts, expires_ts = row
     active = int(datetime.utcnow().timestamp()) < expires_ts
     return jsonify({"active": active, "plan": plan, "expires_ts": expires_ts})
+
+# --- Telegram Webhook Route ---
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return "ok"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))

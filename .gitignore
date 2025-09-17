@@ -1,9 +1,4 @@
-# .gitignore
-.env
 __pycache__/
 *.pyc
-venv/
-.env.*
-*.sqlite3
-*.db
-.DS_Store
+.env
+subscriptions.db

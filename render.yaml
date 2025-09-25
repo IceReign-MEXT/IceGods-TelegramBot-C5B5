@@ -1,0 +1,37 @@
+# Exported from Render on 2025-09-25T11:42:31Z
+version: "1"
+services:
+- type: web
+  name: IceGods-TelegramBot-C5B5
+  runtime: docker
+  repo: https://github.com/IceReign-MEXT/IceGods-TelegramBot-C5B5
+  plan: free
+  envVars:
+  - key: DATABASE_PATH
+    sync: false
+  - key: CMC_API_KEY
+    sync: false
+  - key: INFURA_KEY
+    sync: false
+  - key: SAFE_SOL_WALLET
+    sync: false
+  - key: SAFE_ETH_WALLET
+    sync: false
+  - key: OWNER_LANG
+    sync: false
+  - key: OWNER_LAST
+    sync: false
+  - key: OWNER_FIRST
+    sync: false
+  - key: OWNER_USERNAME
+    sync: false
+  - key: OWNER_ID
+    sync: false
+  - key: BOT_TOKEN
+    sync: false
+  region: oregon
+  healthCheckPath: /
+  dockerContext: .
+  dockerfilePath: ./Dockerfile
+  autoDeployTrigger: commit
+  rootDir: ./

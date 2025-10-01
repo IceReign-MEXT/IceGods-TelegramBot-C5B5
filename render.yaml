@@ -1,33 +1,37 @@
+version: "1"
 services:
-  - type: web
-    name: mesc-telegram-bot
-    env: python
-    plan: free
-    buildCommand: |
-      pip install --no-cache-dir -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
-    envVars:
-      - key: TELEGRAM_BOT_TOKEN
-        value: 8463771499:AAFV1ldwIcuBguGJraUelNJYHsvlHZ5r5go
-      - key: TELEGRAM_ADMIN_ID
-        value: 6453658778
-      - key: ETH_MAIN_WALLET
-        value: 0x08D171685e51bAf7a929cE8945CF25b3D1Ac9756
-      - key: SOL_MAIN_WALLET
-        value: 3JqvK1ZAt67nipBVgZj6zWvuT8icMWBMWyu5AwYnhVss
-      - key: ETH_BACKUP_WALLET
-        value: 0xd13033d3fe0D92A35e8983BbF15511a8B1BE11ac
-      - key: SOL_BACKUP_WALLET
-        value: 7ibxHLwe5kA62r9NiL8bz1yRGXA4chhjuCBuzCaVjs3T
-      - key: CMC_API_KEY
-        value: 2GDS2WJA9A1H46SH8ZUTXPU7EKMZ8IZ7AZ
-      - key: ETHERSCAN_API_KEY
-        value: CYSCBN22AYXFAAUHZCE8H6UU35J2YSV7D1
-      - key: INFURA_API_KEY
-        value: d91d4edb39b9488897dae682f64b8cbb
-      - key: DATABASE_PATH
-        value: subscriptions.db
-      - key: LANG
-        value: en
-      - key: PORT
-        value: 5000
+- type: web
+  name: IceGods-TelegramBot-C5B5-1
+  runtime: docker
+  repo: https://github.com/IceReign-MEXT/IceGods-TelegramBot-C5B5
+  plan: free
+  envVars:
+  - key: PORT
+    sync: false
+  - key: LANG
+    sync: false
+  - key: DATABASE_PATH
+    sync: false
+  - key: INFURA_API_KEY
+    sync: false
+  - key: ETHERSCAN_API_KEY
+    sync: false
+  - key: CMC_API_KEY
+    sync: false
+  - key: SOL_BACKUP_WALLET
+    sync: false
+  - key: ETH_BACKUP_WALLET
+    sync: false
+  - key: SOL_MAIN_WALLET
+    sync: false
+  - key: ETH_MAIN_WALLET
+    sync: false
+  - key: TELEGRAM_ADMIN_ID
+    sync: false
+  - key: TELEGRAM_BOT_TOKEN
+    sync: false
+  region: oregon
+  dockerCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+  dockerContext: ./
+  dockerfilePath: ./Dockerfile
+  autoDeployTrigger: commit

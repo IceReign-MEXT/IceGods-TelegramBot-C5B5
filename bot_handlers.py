@@ -1,28 +1,57 @@
-from telegram import Update, Bot
-from telegram.ext import CallbackContext
-from db import add_subscription, get_latest_subscription, add_pending_payment_request
+from telegram import Update
+from db import get_latest_subscription, add_pending_payment_request
+import os
 
-bot_ref = None
+bot_instance = None
 
-def init_bot_objects(bot: Bot):
-    global bot_ref
-    bot_ref = bot
+def init_bot_objects(bot):
+    global bot_instance
+    bot_instance = bot
 
-def handle_text_command(bot: Bot, update: Update):
-    message = update.message
-    chat_id = message.chat_id
-    text = message.text.strip().lower()
+def handle_text_command(bot, update: Update):
+    if not update.message:
+        return
 
-    if text == "/start":
-        bot.send_message(chat_id, "👋 Welcome! Use /subscribe to buy a plan.")
-    elif text == "/subscribe":
-        # Example subscription prompt
-        bot.send_message(chat_id, "💳 Choose a plan:\n1. Basic - $10\n2. Pro - $20\n\nSend the plan number.")
-    elif text == "1":
-        add_pending_payment_request(chat_id, "Basic", "ETH", 10)
-        bot.send_message(chat_id, "✅ Please send 10 USDT (ERC20) to the main ETH wallet.")
-    elif text == "2":
-        add_pending_payment_request(chat_id, "Pro", "ETH", 20)
-        bot.send_message(chat_id, "✅ Please send 20 USDT (ERC20) to the main ETH wallet.")
+    message = update.message.text.strip().lower()
+    chat_id = update.message.chat_id
+
+    if message == "/start":
+        bot.send_message(chat_id, "👋 Welcome! Use /subscribe to view plans.")
+
+    elif message == "/subscribe":
+        bot.send_message(chat_id,
+            "💳 Subscription Plans:\n"
+            "- Weekly: $5\n"
+            "- Monthly: $15\n"
+            "- Yearly: $100\n\n"
+            "Pay to:\n"
+            f"ETH: {os.getenv('ETH_MAIN_WALLET')}\n"
+            f"SOL: {os.getenv('SOL_MAIN_WALLET')}\n\n"
+            "Then reply with: /plan weekly|monthly|yearly ETH|SOL"
+        )
+
+    elif message.startswith("/plan"):
+        try:
+            _, plan, chain = message.split()
+            prices = {"weekly": 5, "monthly": 15, "yearly": 100}
+            amount = prices.get(plan.lower())
+            if not amount:
+                bot.send_message(chat_id, "❌ Invalid plan.")
+                return
+            add_pending_payment_request(str(chat_id), plan, chain.upper(), amount)
+            bot.send_message(chat_id, f"✅ Send {amount} USD in {chain.upper()} to confirm.")
+        except Exception:
+            bot.send_message(chat_id, "Usage: /plan weekly|monthly|yearly ETH|SOL")
+
+    elif message == "/status":
+        sub = get_latest_subscription(str(chat_id))
+        if not sub:
+            bot.send_message(chat_id, "❌ No active subscription.")
+        else:
+            bot.send_message(chat_id,
+                f"📅 Plan: {sub['plan']}\n"
+                f"Start: {sub['start_ts']}\n"
+                f"Expires: {sub['expires_ts']}"
+            )
     else:
-        bot.send_message(chat_id, "❓ Unknown command.")
+        bot.send_message(chat_id, "❓ Unknown command. Try /subscribe")

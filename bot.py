@@ -1,29 +1,34 @@
-# bot.py - minimal, reliable Telegram bot
 import os
-from dotenv import load_dotenv
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from flask import Flask, request
+from telegram import Bot, Update
+from telegram.error import TelegramError
 
-load_dotenv()
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+from bot_handlers import handle_text_command, init_bot_objects
 
-if not BOT_TOKEN:
-    raise RuntimeError("TELEGRAM_BOT_TOKEN missing from environment (.env or Render variables)")
+TOKEN = os.getenv("BOT_TOKEN")  # make sure this is set in Render
+if not TOKEN:
+    raise ValueError("❌ BOT_TOKEN not set in environment!")
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Hello — bot is running. Use /ping to test.")
+bot = Bot(token=TOKEN)
+init_bot_objects(bot)  # give handlers access to bot object
 
-async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🏓 Pong!")
+app = Flask(__name__)
 
-def main():
-    app = Application.builder().token(BOT_TOKEN).build()
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    try:
+        update = Update.de_json(request.get_json(force=True), bot)
+        handle_text_command(bot, update)
+    except TelegramError as e:
+        print("❌ Telegram API error:", e)
+    except Exception as e:
+        print("❌ General error in webhook:", e)
+    return "ok", 200
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("ping", ping))
-
-    print("🚀 Bot starting...")
-    app.run_polling()  # runs until killed
+@app.route("/", methods=["GET"])
+def home():
+    return "🤖 Telegram Bot Running!", 200
 
 if __name__ == "__main__":
-    main()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)

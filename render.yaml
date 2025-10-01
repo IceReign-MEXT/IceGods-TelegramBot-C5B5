@@ -1,6 +1,13 @@
-envVars:
+version: "1"
+services:
+- type: web
+  name: IceGods-TelegramBot-C5B5
+  runtime: docker
+  repo: https://github.com/IceReign-MEXT/IceGods-TelegramBot-C5B5
+  plan: free
+  envVars:
   - key: TELEGRAM_BOT_TOKEN
-    value: 8463771499:AAGDi5Wy4ktPTjfVLJ54YffZL1trg36C9P8
+    value: 8251174590:AAFY3xCARRxyTHRxatrY8ohjzRU2jfdn4wE
   - key: TELEGRAM_ADMIN_ID
     value: 6453658778
   - key: ETH_MAIN_WALLET
@@ -23,3 +30,9 @@ envVars:
     value: en
   - key: PORT
     value: 5000
+  region: oregon
+  healthCheckPath: /
+  dockerContext: .
+  dockerfilePath: ./Dockerfile
+  autoDeployTrigger: commit
+  rootDir: ./

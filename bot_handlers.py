@@ -3,47 +3,34 @@ import time
 from datetime import datetime
 from telegram import Bot, Update
 
+# Import your DB + payments helpers (assume already working in your repo)
 from payments import get_prices_usd, record_payment_check_request
 from db import (
-    add_subscription,
-    add_payment_record,
     get_latest_subscription,
     add_user_wallet,
-    get_user_wallets,
 )
 
 BOT = None
-
-# Subscription plans in USD
-PLANS_USD = {
-    "weekly": 16,
-    "monthly": 60,
-    "yearly": 600,
-}
+PLANS_USD = {"weekly": 16, "monthly": 60, "yearly": 600}
 
 def init_bot_objects(bot: Bot):
-    """Initialize the global bot object so other functions can send messages."""
     global BOT
     BOT = bot
 
 def _send(chat_id, text, parse_mode=None):
-    """Helper to safely send a message."""
     try:
         BOT.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
     except Exception as e:
-        print("❌ Failed to send message:", e)
+        print("❌ Send error:", e)
 
 def handle_text_command(bot: Bot, update: Update):
-    """Main dispatcher for incoming Telegram messages (via webhook)."""
     if not update.message:
         return
-
     chat_id = update.effective_chat.id
     text = update.message.text or ""
     parts = text.strip().split()
     cmd = parts[0].lower()
 
-    # Command routing
     if cmd == "/start":
         _cmd_start(chat_id)
     elif cmd == "/ping":
@@ -51,11 +38,9 @@ def handle_text_command(bot: Bot, update: Update):
     elif cmd == "/pricing":
         _cmd_pricing(chat_id)
     elif cmd == "/payment":
-        arg = parts[1] if len(parts) > 1 else None
-        _cmd_payment(chat_id, arg)
+        _cmd_payment(chat_id, parts[1] if len(parts) > 1 else None)
     elif cmd == "/addwallet":
-        addr = parts[1] if len(parts) > 1 else None
-        _cmd_addwallet(chat_id, addr)
+        _cmd_addwallet(chat_id, parts[1] if len(parts) > 1 else None)
     elif cmd == "/status":
         _cmd_status(chat_id)
     elif cmd == "/support":
@@ -63,113 +48,78 @@ def handle_text_command(bot: Bot, update: Update):
     elif cmd == "/whitepaper":
         _cmd_whitepaper(chat_id)
     else:
-        _send(chat_id, "I didn't understand that. Use /start to see commands.")
-
-# =======================
-# Command Implementations
-# =======================
+        _send(chat_id, "Unknown command. Use /start to see options.")
 
 def _cmd_start(chat_id):
-    text = (
-        "👋 Welcome to YieldForge (IceGods)\n\n"
-        "Available Commands:\n"
-        "/ping - Test if bot is alive\n"
-        "/pricing - View subscription plans\n"
-        "/payment <weekly|monthly|yearly> - Get payment address & amount\n"
-        "/addwallet <address> - Add wallet to monitor (after subscription)\n"
-        "/status - Check your subscription status\n"
+    _send(chat_id,
+        "👋 Welcome!\n\n"
+        "/ping - Test bot\n"
+        "/pricing - Plans\n"
+        "/payment <plan>\n"
+        "/addwallet <address>\n"
+        "/status - Subscription info\n"
         "/support - Contact admin\n"
-        "/whitepaper - Platform docs\n"
+        "/whitepaper - Docs"
     )
-    _send(chat_id, text)
 
 def _cmd_pricing(chat_id):
     try:
         prices = get_prices_usd()
-        eth_price = prices["ETH"]
-        sol_price = prices["SOL"]
-    except Exception as e:
-        print("❌ Price fetch error:", e)
-        _send(chat_id, "⚠️ Unable to fetch prices right now. Try again later.")
+        eth_price, sol_price = prices["ETH"], prices["SOL"]
+    except:
+        _send(chat_id, "⚠️ Could not fetch prices.")
         return
+    msg = "💰 Plans:\n\n"
+    for plan, usd in PLANS_USD.items():
+        msg += f"{plan.capitalize()}: ${usd} → {usd/eth_price:.6f} ETH / {usd/sol_price:.6f} SOL\n"
+    _send(chat_id, msg)
 
-    text = "💰 Subscription Plans (equivalents in ETH / SOL):\n\n"
-    for name, usd in PLANS_USD.items():
-        eth_amt = usd / eth_price
-        sol_amt = usd / sol_price
-        text += f"{name.capitalize()}: ${usd} → {eth_amt:.6f} ETH / {sol_amt:.6f} SOL\n"
-    _send(chat_id, text)
-
-def _cmd_payment(chat_id, plan_arg):
-    if not plan_arg:
+def _cmd_payment(chat_id, plan):
+    if not plan or plan not in PLANS_USD:
         _send(chat_id, "Usage: /payment <weekly|monthly|yearly>")
         return
-
-    plan = plan_arg.lower()
-    if plan not in PLANS_USD:
-        _send(chat_id, "❌ Invalid plan. Choose: weekly, monthly or yearly.")
-        return
-
     usd = PLANS_USD[plan]
     try:
         prices = get_prices_usd()
-        eth_price = prices["ETH"]
-        sol_price = prices["SOL"]
-    except Exception as e:
-        print("❌ Price error:", e)
-        _send(chat_id, "⚠️ Price fetch failed. Try again later.")
+        eth_price, sol_price = prices["ETH"], prices["SOL"]
+    except:
+        _send(chat_id, "⚠️ Price fetch failed.")
         return
-
-    eth_amt = usd / eth_price
-    sol_amt = usd / sol_price
-
-    eth_addr = os.getenv("ETH_MAIN_WALLET")
-    sol_addr = os.getenv("SOL_MAIN_WALLET")
-
-    # Save pending payment check request
+    eth_amt, sol_amt = usd/eth_price, usd/sol_price
+    eth_addr, sol_addr = os.getenv("ETH_MAIN_WALLET"), os.getenv("SOL_MAIN_WALLET")
     record_payment_check_request(str(chat_id), plan, "ETH", eth_amt)
     record_payment_check_request(str(chat_id), plan, "SOL", sol_amt)
-
-    text = (
-        f"🔒 To activate your *{plan.capitalize()}* plan (${usd}):\n\n"
-        f"Send *{eth_amt:.6f} ETH* to:\n`{eth_addr}`\n\n"
-        f"OR\n\n"
-        f"Send *{sol_amt:.6f} SOL* to:\n`{sol_addr}`\n\n"
-        "✅ After 1 confirmation, your subscription will be activated automatically.\n"
-        "⚠️ Allow a few minutes for checks."
-    )
-    _send(chat_id, text, parse_mode="Markdown")
+    _send(chat_id,
+        f"🔒 {plan.capitalize()} (${usd})\n\n"
+        f"Pay {eth_amt:.6f} ETH → `{eth_addr}`\n"
+        f"or {sol_amt:.6f} SOL → `{sol_addr}`\n\n"
+        "✅ Activated after 1 confirmation."
+    , parse_mode="Markdown")
 
 def _cmd_addwallet(chat_id, addr):
     if not addr:
         _send(chat_id, "Usage: /addwallet <address>")
         return
-
     sub = get_latest_subscription(str(chat_id))
-    now_ts = int(time.time())
-
-    if not sub or sub["expires_ts"] < now_ts:
-        _send(chat_id, "❌ You need an active subscription to add wallets. Use /payment.")
+    if not sub or sub["expires_ts"] < int(time.time()):
+        _send(chat_id, "❌ No active subscription. Use /payment.")
         return
-
     add_user_wallet(str(chat_id), addr)
-    _send(chat_id, f"✅ Wallet `{addr}` added for monitoring.")
+    _send(chat_id, f"✅ Wallet {addr} added.")
 
 def _cmd_status(chat_id):
     sub = get_latest_subscription(str(chat_id))
     if not sub:
-        _send(chat_id, "❌ You have no active subscription.")
+        _send(chat_id, "❌ No active subscription.")
         return
-
-    active = sub["expires_ts"] > int(time.time())
     exp = datetime.utcfromtimestamp(sub["expires_ts"]).strftime("%Y-%m-%d %H:%M:%S UTC")
-    _send(chat_id, f"📊 Subscription: {sub['plan']} | Active: {active}\nExpires: {exp}")
+    _send(chat_id, f"📊 Plan: {sub['plan']} | Expires: {exp}")
 
 def _cmd_support(chat_id):
     admin = os.getenv("TELEGRAM_ADMIN_ID")
-    _send(chat_id, "📨 Support: your message has been forwarded to admin.")
+    _send(chat_id, "📨 Your message has been forwarded.")
     if admin:
-        _send(admin, f"📩 Support request from {chat_id}. Use /status to view their subscription.")
+        _send(admin, f"📩 Support from {chat_id}")
 
 def _cmd_whitepaper(chat_id):
     _send(chat_id, "📄 Whitepaper: https://example.com/whitepaper.pdf")

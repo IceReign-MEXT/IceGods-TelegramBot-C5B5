@@ -1,18 +1,17 @@
-# 🦅 Ice Gods Modern Brain (USDT & Alpha)
+---
+title: Ice-Gods-Modern-Brain
+emoji: 🦅
+colorFrom: blue
+colorTo: gray
+sdk: docker
+app_port: 7860
+pinned: false
+---
 
-A professional Telegram bot built for the **Ice Gods Empire**. 
-This bot integrates **TRON/USDT Referral Rewards** with **Solana Alpha Intelligence**.
+# 🦅 Ice Gods Modern Brain
+Professional Blockchain Intelligence & USDT Referral Ecosystem.
 
-## 🚀 Features
-- **USDT Referral System:** Users earn 0.5 USDT per invite.
-- **Large Format Alerts:** Bold, professional Alpha signals from DexScreener.
-- **24/7 Hosting Ready:** Built-in Flask server for Koyeb/Render compatibility.
-- **Secure Ledger:** SQLite database for user balances and VIP status.
 
-## 🛠 Setup
-1. Clone the repo.
-2. Fill `.env` using `.env.example`.
-3. Deploy to **Koyeb** (Nano instance).
 
-## 🛡 Security
-Private keys are protected via `.gitignore`.
+
+

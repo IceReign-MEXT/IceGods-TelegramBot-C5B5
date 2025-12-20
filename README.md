@@ -8,8 +8,6 @@ app_port: 7860
 pinned: false
 ---
 
-# 🦅 Ice Gods Modern Brain
-Professional Blockchain Intelligence & USDT Referral Ecosystem.
 
 
 

@@ -24,17 +24,7 @@ def add_referral(user_id, ref_id, bonus):
     conn = sqlite3.connect('ice_gods.db')
     c = conn.cursor()
     c.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
-    if c.rowcount > 0:
+    if c.rowcount > 0 and ref_id:
         c.execute("UPDATE users SET balance = balance + ?, referrals = referrals + 1 WHERE user_id = ?", (bonus, ref_id))
     conn.commit()
     conn.close()
-
-def check_vip(user_id):
-    conn = sqlite3.connect('ice_gods.db')
-    c = conn.cursor()
-    c.execute("SELECT vip_expiry FROM users WHERE user_id = ?", (user_id,))
-    res = c.fetchone()
-    conn.close()
-    if res and res[0]:
-        return datetime.strptime(res[0], '%Y-%m-%d %H:%M:%S') > datetime.now()
-    return False

@@ -3,4 +3,3 @@ aiohttp
 flask
 gunicorn
 python-dotenv
-tronpy

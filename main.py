@@ -7,22 +7,29 @@ from aiogram.filters import CommandStart
 from threading import Thread
 from database import init_db
 
+# --- LOGGING SETUP ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # --- CONFIG ---
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+# Hugging Face MUST have a web server on port 7860
 app = Flask(__name__)
 
 @app.route('/')
-def home(): return "Ice Gods Engine: Online"
+def home():
+    return "Ice Gods PRO: Online"
 
 @app.route('/health')
-def health(): return "OK", 200
+def health():
+    return "OK", 200
 
-# Bot Setup
+# --- BOT SETUP ---
 bot = Bot(token=TOKEN) if TOKEN else None
 dp = Dispatcher()
 
 @dp.message(CommandStart())
-async def start(m: types.Message):
+async def start_cmd(m: types.Message):
     div = "━━━━━━━━━━━━━━━━━━━━"
     welcome = (
         f"⚡️⚡️ <b>ICE GODS MODERN BRAIN</b> ⚡️⚡️\n"
@@ -35,19 +42,35 @@ async def start(m: types.Message):
     )
     await m.answer(welcome, parse_mode="HTML")
 
-async def run_bot():
+async def start_bot_polling():
     if not bot:
-        logging.error("CRITICAL: TELEGRAM_BOT_TOKEN NOT FOUND")
+        logger.error("CRITICAL: TELEGRAM_BOT_TOKEN is missing in Secrets!")
         return
-    # Fix conflict
-    await bot.delete_webhook(drop_pending_updates=True)
-    logging.info("Bot is now listening to Telegram...")
-    await dp.start_polling(bot)
+
+    try:
+        # Step 1: Force delete any old webhooks (Fixes 'Conflict' error)
+        logger.info("CLEANING OLD CONNECTIONS...")
+        await bot.delete_webhook(drop_pending_updates=True)
+
+        # Step 2: Start listening to messages
+        logger.info("ICE GODS BOT IS NOW LISTENING...")
+        await dp.start_polling(bot)
+    except Exception as e:
+        logger.error(f"Polling Error: {e}")
+
+def run_web_server():
+    # Hugging Face uses port 7860
+    logger.info("STARTING WEB SERVER ON PORT 7860...")
+    app.run(host='0.0.0.0', port=7860, debug=False, use_reloader=False)
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     init_db()
-    # Start bot in background thread
-    Thread(target=lambda: asyncio.run(run_bot())).start()
-    # Flask on main thread for Hugging Face port 7860
-    app.run(host='0.0.0.0', port=7860)
+
+    # 1. Start the web server in a background thread
+    web_thread = Thread(target=run_web_server)
+    web_thread.daemon = True
+    web_thread.start()
+
+    # 2. Run the bot in the main thread (This prevents it from dying)
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(start_bot_polling())

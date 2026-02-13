@@ -1,0 +1,4 @@
+solana-web3.js
+node-telegram-bot-api
+node-cron
+dotenv

@@ -1,14 +1,15 @@
 {
-  "name": "vanguard-station",
-  "version": "5.0.0",
+  "name": "matrix-vanguard",
+  "version": "6.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "whale": "node whale.js"
   },
   "dependencies": {
-    "@solana/web3.js": "^1.98.4",
-    "dotenv": "^16.6.1",
+    "node-telegram-bot-api": "^0.64.0",
+    "@solana/web3.js": "^1.87.0",
     "node-cron": "^3.0.3",
-    "node-telegram-bot-api": "^0.64.0"
+    "dotenv": "^16.3.1"
   }
 }

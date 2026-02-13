@@ -1,10 +1,11 @@
 {
-  "name": "matrix-vanguard",
-  "version": "6.0.0",
+  "name": "matrix-vanguard-pro",
+  "version": "7.0.0",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "whale": "node whale.js"
+    "guard": "node guard.js",
+    "all": "node index.js & node guard.js"
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.64.0",

@@ -1,0 +1,9 @@
+python-telegram-bot
+aiohttp
+flask
+gunicorn
+python-dotenv
+asyncpg
+solders
+base58
+decimal

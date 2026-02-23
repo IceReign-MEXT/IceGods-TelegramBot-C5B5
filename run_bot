@@ -1,0 +1,3 @@
+bot_app.add_handler(CommandHandler("wallet", cmd_wallet))
+    bot_app.add_handler(CommandHandler("plans", cmd_plans))
+    bot_app.add_handler(CommandHandler("support", cmd_support))
